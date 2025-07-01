@@ -3,19 +3,18 @@ receivers:
     protocols:
       grpc:
       http:
-        endpoint: "0.0.0:4318"
+        endpoint: "0.0.0.0:4318"
 
 processors:
   batch:
 
-exporter:
+exporters:
   debug:
     verbosity: detailed
-    sampling_interval: 5s
+    sampling_initial: 5
     sampling_thereafter: 200
   otlphttp/logs:
     endpoint: "http://${env:LOKI_WRITER_ENDPOINT}/otlp"
-    compression: on
     headers:
       X-Scope-OrgID: ${env:LOKI_ORG_ID}
 

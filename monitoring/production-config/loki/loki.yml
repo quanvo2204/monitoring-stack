@@ -1,10 +1,8 @@
 auth_enabled: true
 
-# Cấu hình giới hạn cho Loki 
-limit_config:
+limits_config:
   allow_structured_metadata: true
 
-# Cấu hình server HTTP và gRPC:
 server:
   http_listen_address: 0.0.0.0
   http_listen_port: 3100
@@ -13,29 +11,27 @@ server:
   http_server_write_timeout: 310s
   http_server_read_timeout: 310s
 
-# Cấu hình chung cho Loki: đường dẫn lưu trữ, số bản sao, endpoint compactor và backend ring.
 common:
   path_prefix: /loki
   replication_factor: 1
-  compactor_address: ${LOKI_COMPACTOR_ENDPOINT:http://localhost:3100}
+  compactor_address: ${LOKI_BACKEND_ENDPOINT:http://loki_backend:3100}
   ring:
     kvstore:
       store: memberlist
 
-# Cấu hình lưu trữ log
-store_config:
-  bolt_shipper:
+storage_config:
+  boltdb_shipper:
     active_index_directory: /loki/index
+    
   aws:
     endpoint: http://${MINIO_ENDPOINT:minio:9000}
     s3forcepathstyle: true
     access_key_id: ${MINIO_ROOT_USER:minio-user}
     secret_access_key: ${MINIO_ROOT_PASSWORD:minio-pass}
     insecure: true
-    bucketnames: loki
+    bucketnames: loki  
 
-# Cấu hình lưu trữ rule files cho Loki (dùng MinIO S3-compatible storage)
-rules:
+ruler:
   storage:
     s3:
       endpoint: http://${MINIO_ENDPOINT:minio:9000}
@@ -43,23 +39,21 @@ rules:
       access_key_id: ${MINIO_ROOT_USER:minio-user}
       secret_access_key: ${MINIO_ROOT_PASSWORD:minio-pass}
       insecure: true
-      bucketnames: loki-rules
+      bucketnames: loki-ruler
 
-# Cấu hình memberlist cho Loki
 memberlist:
   join_members:
-    - loki-backend
-    - loki-reader
-    - loki-writer
+    - loki_backend
+    - loki_reader
+    - loki_writer
   dead_node_reclaim_time: 30s
   gossip_to_dead_nodes_time: 15s
-  left_ingress_timeout: 30s
-  bind_address:
+  left_ingesters_timeout: 30s
+  bind_addr:
     - 0.0.0.0
   bind_port: 7946
   gossip_interval: 2s
 
-# Cấu hình schema cho Loki sử dụng TSDB, lưu trữ trên S3, với index prefix và chu kỳ 24h.
 schema_config:
   configs:
     - from: 2023-01-01
@@ -70,6 +64,5 @@ schema_config:
         prefix: index_
         period: 24h
 
-# Cấu hình compactor cho Loki
 compactor:
   working_directory: /tmp/compactor

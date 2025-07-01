@@ -27,7 +27,11 @@ services:
       driver: fluentd
       options:
         fluentd-address: "localhost:24224"
-
+        labels: "service.name,deployment.environment,project.name"
+    labels:
+      service.name: "vote"
+      project.name: "demo"
+      deployment.environment: "local"
   result:
     build: ./result
     # use nodemon rather than node for local dev
