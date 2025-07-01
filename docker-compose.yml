@@ -23,6 +23,10 @@ services:
     networks:
       - front-tier
       - back-tier
+    logging:
+      driver: fluentd
+      options:
+        fluentd-address: "localhost:24224"
 
   result:
     build: ./result

@@ -1,0 +1,16 @@
+services:
+  fluentbit:
+    image: fluent/fluent-bit:latest
+    container_name: fluentbit
+    volumes:
+      - ./production-config/fluentbit/fluent-bit.yml:/fluent-bit/etc/fluent-bit.yml
+    command: -c /fluent-bit/etc/fluent-bit.yml
+    ports:
+      - "24224:24224"
+    restart: unless-stopped
+    networks:
+      - monitoring
+
+networks:
+  monitoring:
+    external: true
