@@ -11,6 +11,111 @@ services:
     networks:
       - monitoring
 
+  minio:
+    image: minio/minio:latest
+    container_name: minio
+    environment:
+      MINIO_ROOT_USER: minio-user
+      MINIO_ROOT_PASSWORD: minio-pass
+    command: server --console-address ":9070" /data
+    ports:
+      - "9070:9070"
+    volumes:
+      - minio-data:/data
+    restart: unless-stopped
+    networks:
+      - monitoring
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
+      interval: 1m30s
+      timeout: 30s
+      retries: 3
+
+  createbuckets:
+    image: minio/mc
+    depends_on:
+      - minio
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-minio-user}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-minio-pass}
+      MINIO_ENDPOINT: ${MINIO_ENDPOINT:-minio:9000}
+    entrypoint: >
+      /bin/sh -c "
+      /usr/bin/mc alias set monitoring http://$MINIO_ENDPOINT $MINIO_ROOT_USER $MINIO_ROOT_PASSWORD;
+      /usr/bin/mc mb -p monitoring/mimir;
+      /usr/bin/mc mb -p monitoring/loki;
+      /usr/bin/mc mb -p monitoring/loki-rules;
+      /usr/bin/mc policy set download monitoring/mimir;
+      /usr/bin/mc policy set download monitoring/loki;
+      /usr/bin/mc policy set download monitoring/loki-rules;
+      exit 0;
+    networks:
+      - monitoring
+  
+  # Loki
+  loki_backend:
+    build:
+      context: ./production-config/loki
+      dockerfile: Dockerfile
+    command: --config.file=/loki/loki.yml --config.expand-env=true --target=backend
+    environment:
+      MEMBERLIST: loki_backend
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-minio-user}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-minio-pass}
+      MINIO_ENDPOINT: ${MINIO_ENDPOINT:-minio:9000}
+      LOKI_BACKEND_ENDPOINT: ${LOKI_BACKEND_ENDPOINT:-http://loki_backend:3100}
+    networks:
+      - monitoring
+
+  loki_reader:
+    build:
+      context: ./production-config/loki
+      dockerfile: Dockerfile
+    command: --config.file=/loki/loki.yml --config.expand-env=true --target=read
+    environment:
+      MEMBERLIST: loki_reader
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-minio-user}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-minio-pass}
+      MINIO_ENDPOINT: ${MINIO_ENDPOINT:-minio:9000}
+      LOKI_READER_ENDPOINT: ${LOKI_READER_ENDPOINT:-http://loki_backend:3100}
+    networks:
+      - monitoring
+
+  loki_writer:
+    build:
+      context: ./production-config/loki
+      dockerfile: Dockerfile
+    command: --config.file=/loki/loki.yml --config.expand-env=true --target=write
+    environment:
+      MEMBERLIST: loki_writer
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-minio-user}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-minio-pass}
+      MINIO_ENDPOINT: ${MINIO_ENDPOINT:-minio:9000}
+      LOKI_WRITER_ENDPOINT: ${LOKI_WRITER_ENDPOINT:-http://loki_backend:3100}
+    networks:
+      - monitoring
+    
+  loki_gateway:
+    image: nginx:latest
+    volumes:
+      - ./production-config/loki/nginx.conf:/etc/nginx/nginx.conf
+    depends_on:
+      - "loki_backend"
+      - "loki_reader"
+      - "loki_writer"
+    command: nginx -g 'daemon off;'
+    networks:
+      - monitoring
+
+volumes:
+  mysql-data:
+  grafana-data:
+  mimir_backend-data:
+  mimir_reader-data:
+  mimir_writer-data:
+  minio-data:
+
+
 networks:
   monitoring:
     external: true
