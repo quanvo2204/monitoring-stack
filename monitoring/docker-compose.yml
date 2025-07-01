@@ -5,6 +5,9 @@ services:
     volumes:
       - ./production-config/fluentbit/fluent-bit.yml:/fluent-bit/etc/fluent-bit.yml
     command: -c /fluent-bit/etc/fluent-bit.yml
+    environment:
+      OTLP_HOSTNAME: otel_collector
+      LOKI_ORG_ID: ${LOKI_ORG_ID:-monitoring-org}
     ports:
       - "24224:24224"
     restart: unless-stopped
@@ -52,7 +55,7 @@ services:
     networks:
       - monitoring
   
-  # Loki
+  # Loki layer
   loki_backend:
     build:
       context: ./production-config/loki
@@ -107,6 +110,23 @@ services:
     networks:
       - monitoring
 
+# Telemetry layer
+  otel_collector:
+    image: otel/opentelemetry-collector:latest
+    container_name: otel_collector
+    volumes:
+      - ./config/otel-config.yaml:/etc/otel/config.yaml
+    command: ["--config=/etc/otel/config.yaml"]
+    environment:
+      LOKI_WRITER_ENDPOINT: loki_writer:3100
+      LOKI_ORG_ID: ${LOKI_ORG_ID:-monitoring-org}
+    ports:
+      - "4318:4318"  # OTLP gRPC
+      - "4317:4317"  # OTLP HTTP
+    restart: unless-stopped
+    networks:
+      - monitoring
+
 volumes:
   mysql-data:
   grafana-data:
@@ -114,7 +134,6 @@ volumes:
   mimir_reader-data:
   mimir_writer-data:
   minio-data:
-
 
 networks:
   monitoring:
